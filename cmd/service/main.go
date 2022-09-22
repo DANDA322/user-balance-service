@@ -24,8 +24,8 @@ const addr = ":9999"
 var (
 	verbose    = lookupEnv("VERBOSE", "true")
 	pgDSN      = lookupEnv("PG_DSN", "postgres://postgres:secret@localhost:5432/postgres")
-	convUrl    = "https://api.apilayer.com/exchangerates_data/latest?"
-	convApiKey = "9lhi5Xm3MES5GPentAspvlOh5AX1VVPy"
+	convURL    = lookupEnv("CONV_URL", "https://api.apilayer.com/exchangerates_data/latest?")
+	convAPIKey = lookupEnv("CONV_API_KEY", "9lhi5Xm3MES5GPentAspvlOh5AX1VVPy")
 )
 
 func main() {
@@ -35,7 +35,7 @@ func main() {
 	if err != nil {
 		log.Panicf("failed to get pg connection: %v", err)
 	}
-	converter := converter.NewConverter(convUrl, convApiKey)
+	converter := converter.NewConverter(convURL, convAPIKey)
 	service := internal.NewApp(log, store, converter)
 	router := rest.NewRouter(log, service)
 	if err := startServer(ctx, log, router); err != nil {
@@ -46,8 +46,9 @@ func main() {
 func startServer(ctx context.Context, log *logrus.Logger, r http.Handler) error {
 	log.Info("Server start on ", addr)
 	s := http.Server{
-		Addr:    addr,
-		Handler: r,
+		Addr:              addr,
+		Handler:           r,
+		ReadHeaderTimeout: time.Second * 30,
 	}
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGHUP, syscall.SIGQUIT)

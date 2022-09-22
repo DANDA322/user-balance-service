@@ -1,6 +1,6 @@
 package models
 
 type SessionInfo struct {
-	AccountId int
+	AccountID int
 	Role      string
 }

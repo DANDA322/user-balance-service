@@ -3,9 +3,9 @@ package rest
 import (
 	"context"
 	"encoding/json"
-	"github.com/DANDA322/user-balance-service/internal/models"
 	"net/http"
 
+	"github.com/DANDA322/user-balance-service/internal/models"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -13,10 +13,10 @@ import (
 )
 
 type Balance interface {
-	GetBalance(ctx context.Context, accountId int, currency string) (float64, error)
-	AddDepositToWallet(ctx context.Context, accountId int, transaction models.Transaction) error
-	WithdrawMoneyFromWallet(ctx context.Context, accountId int, transaction models.Transaction) error
-	TransferMoney(ctx context.Context, accountId int, transaction models.TransferTransaction) error
+	GetBalance(ctx context.Context, accountID int, currency string) (float64, error)
+	AddDepositToWallet(ctx context.Context, accountID int, transaction models.Transaction) error
+	WithdrawMoneyFromWallet(ctx context.Context, accountID int, transaction models.Transaction) error
+	TransferMoney(ctx context.Context, accountID int, transaction models.TransferTransaction) error
 }
 
 func NewRouter(log *logrus.Logger, balance Balance) chi.Router {

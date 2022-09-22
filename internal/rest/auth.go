@@ -6,22 +6,22 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"github.com/DANDA322/user-balance-service/internal/models"
 	"net/http"
 	"strings"
 
+	"github.com/DANDA322/user-balance-service/internal/models"
 	"github.com/golang-jwt/jwt"
 )
 
 type Claims struct {
 	jwt.StandardClaims
-	AccountId int    `json:"accountId"`
+	AccountID int    `json:"account_id"`
 	Role      string `json:"role"`
 }
 
-type claimsType string
+type sessionType string
 
-var ClaimsKey claimsType = `Claims`
+var SessionKey sessionType = `sessionInfo`
 
 func mustGetPublicKey(keyBytes []byte) *rsa.PublicKey {
 	if len(keyBytes) == 0 {
@@ -60,10 +60,10 @@ func (h *handler) auth(next http.Handler) http.Handler {
 			return
 		}
 		sessionInfo := models.SessionInfo{
-			AccountId: claims.AccountId,
+			AccountID: claims.AccountID,
 			Role:      claims.Role,
 		}
-		r = r.WithContext(context.WithValue(r.Context(), "sessionInfo", sessionInfo))
+		r = r.WithContext(context.WithValue(r.Context(), SessionKey, sessionInfo))
 		next.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(fn)
