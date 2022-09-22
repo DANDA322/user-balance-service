@@ -13,6 +13,7 @@ import (
 	"github.com/DANDA322/user-balance-service/internal"
 	"github.com/DANDA322/user-balance-service/internal/pgstore"
 	"github.com/DANDA322/user-balance-service/internal/rest"
+	"github.com/DANDA322/user-balance-service/pkg/converter"
 	"github.com/DANDA322/user-balance-service/pkg/logging"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/sirupsen/logrus"
@@ -21,8 +22,10 @@ import (
 const addr = ":9999"
 
 var (
-	verbose = lookupEnv("VERBOSE", "true")
-	pgDSN   = lookupEnv("PG_DSN", "postgres://postgres:secret@localhost:5432/postgres")
+	verbose    = lookupEnv("VERBOSE", "true")
+	pgDSN      = lookupEnv("PG_DSN", "postgres://postgres:secret@localhost:5432/postgres")
+	convUrl    = "https://api.apilayer.com/exchangerates_data/latest?"
+	convApiKey = "9lhi5Xm3MES5GPentAspvlOh5AX1VVPy"
 )
 
 func main() {
@@ -32,7 +35,8 @@ func main() {
 	if err != nil {
 		log.Panicf("failed to get pg connection: %v", err)
 	}
-	service := internal.NewApp(log, store)
+	converter := converter.NewConverter(convUrl, convApiKey)
+	service := internal.NewApp(log, store, converter)
 	router := rest.NewRouter(log, service)
 	if err := startServer(ctx, log, router); err != nil {
 		log.Panic("error: ", err)
