@@ -9,10 +9,8 @@ import (
 
 const base = "RUB"
 
-type currency float64
-
 type RemoteConverter struct {
-	Url    string
+	URL    string
 	apiKey string
 	client *http.Client
 }
@@ -27,14 +25,14 @@ type Response struct {
 
 func NewConverter(url, apiKey string) *RemoteConverter {
 	return &RemoteConverter{
-		Url:    url,
+		URL:    url,
 		apiKey: apiKey,
 		client: &http.Client{},
 	}
 }
 
 func (c *RemoteConverter) GetRate(ctx context.Context, currency string) (float64, error) {
-	req, err := http.NewRequest(http.MethodGet, c.Url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.URL, nil)
 	if err != nil {
 		return 0, err
 	}
