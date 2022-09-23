@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"time"
 
@@ -71,31 +72,28 @@ func (db *DB) Migrate(direction migrate.MigrationDirection) error {
 	return err
 }
 
-func (db *DB) GetWalletBalance(ctx context.Context, ownerID int) (*models.Wallet, error) {
+func (db *DB) GetWallet(ctx context.Context, ownerID int) (*models.Wallet, error) {
 	query := `
 	SELECT id, balance, created_at, updated_at
 	FROM wallet
 	WHERE owner_id = $1`
 	var wallet models.Wallet
 	if err := db.db.GetContext(ctx, &wallet, query, ownerID); err != nil {
-		return nil, fmt.Errorf("err executing [GetWalletBalance]: %w", err)
-	}
-	return &wallet, nil
-}
-
-func (db *DB) GetWalletIDByOwnerID(ctx context.Context, ownerID int) (*models.Wallet, error) {
-	query := `
-	SELECT id
-	FROM wallet
-	WHERE owner_id = $1`
-	var wallet models.Wallet
-	if err := db.db.GetContext(ctx, &wallet, query, ownerID); err != nil {
-		return nil, fmt.Errorf("err executing [GetWalletIdByOwnerId]: %w", err)
+		return nil, fmt.Errorf("err executing [GetWallet]: %w", err)
 	}
 	return &wallet, nil
 }
 
 func (db *DB) UpsertDepositToWallet(ctx context.Context, ownerID int, transaction models.Transaction) error {
+	tx, err := db.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("err deposit money the wallet: %w", err)
+	}
+	defer func() {
+		if err = tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			db.log.Error("err rolling back deposit transaction")
+		}
+	}()
 	query := fmt.Sprintf(`
 	INSERT INTO wallet (owner_id, balance, created_at, updated_at)
 	VALUES ($1, $2, '%[1]s', '%[1]s')
@@ -105,51 +103,105 @@ func (db *DB) UpsertDepositToWallet(ctx context.Context, ownerID int, transactio
 	if _, err := db.db.ExecContext(ctx, query, ownerID, transaction.Amount); err != nil {
 		return fmt.Errorf("err executing [UpsertDepositToWallet]: %w", err)
 	}
-	wallet, err := db.GetWalletIDByOwnerID(ctx, ownerID)
+	wallet, err := db.GetWallet(ctx, ownerID)
 	if err != nil {
 		return fmt.Errorf("err executing [UpsertDepositToWallet]: %w", err)
 	}
+
 	if err = db.InsertTransaction(ctx, 0, wallet.ID, transaction); err != nil {
 		return fmt.Errorf("err executing [UpsertDepositToWallet]: %w", err)
+	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("err committing the transaction: %w", err)
 	}
 	return nil
 }
 
 func (db *DB) WithdrawMoneyFromWallet(ctx context.Context, ownerID int, transaction models.Transaction) error {
+	tx, err := db.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("err withdraw money the wallet: %w", err)
+	}
+	defer func() {
+		if err = tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			db.log.Error("err rolling back withdraw transaction")
+		}
+	}()
+	wallet, err := db.checkBalance(ctx, ownerID, transaction.Amount)
+	if err != nil {
+		return err
+	}
 	query := fmt.Sprintf(`
-	UPDATE wallet SET balance = balance - $1,
+	UPDATE wallet 
+	SET balance = balance - $1,
 	updated_at = '%s'
-	WHERE owner_id = $2 AND wallet.balance - $1 > 0`,
+	WHERE owner_id = $2`,
 		time.Now().Format(dateTimeFmt))
-	result, err := db.db.ExecContext(ctx, query, transaction.Amount, ownerID)
+	result, err := tx.ExecContext(ctx, query, transaction.Amount, ownerID)
 	if err != nil {
 		return fmt.Errorf("err executing [WithdrawMoneyFromWallet]: %w", err)
 	}
 	if count, _ := result.RowsAffected(); count == 0 {
-		return models.ErrNotEnoughMoney
-	}
-	wallet, err := db.GetWalletIDByOwnerID(ctx, ownerID)
-	if err != nil {
-		return fmt.Errorf("err executing [WithdrawMoneyFromWallet]: %w", err)
+		return models.ErrWalletNotFound
 	}
 	transaction.Amount *= -1
 	if err = db.InsertTransaction(ctx, 0, wallet.ID, transaction); err != nil {
 		return fmt.Errorf("err executing [WithdrawMoneyFromWallet]: %w", err)
 	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("err committing the transaction: %w", err)
+	}
 	return nil
 }
 
-// func (db *DB) TransferMoney(ctx context.Context, accountId int, transaction models.TransferTransaction) error {
-//	query
-// }
+func (db *DB) checkBalance(ctx context.Context, ownerID int, amount float64) (*models.Wallet, error) {
+	wallet, err := db.GetWallet(ctx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	if wallet.Balance-amount < 0 {
+		return nil, models.ErrNotEnoughMoney
+	}
+	return wallet, nil
+}
+
+func (db *DB) TransferMoney(ctx context.Context, accountID int, transaction models.TransferTransaction) error {
+	tx, err := db.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("err withdraw money the wallet: %w", err)
+	}
+	defer func() {
+		if err = tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			db.log.Error("err rolling back withdraw transaction")
+		}
+	}()
+	// wallet, err := db.checkBalance(ctx, accountId, transaction.Amount)
+	// if err != nil {
+	//	return err
+	// }
+	// db.WithdrawMoneyFromWallet(ctx, accountId, transaction)
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("err committing the transaction: %w", err)
+	}
+	return nil
+}
 
 func (db *DB) InsertTransaction(ctx context.Context, walletID, targetWalletID int, transaction models.Transaction) error {
 	query := fmt.Sprintf(`
 	INSERT INTO transaction (wallet_id, amount, target_wallet_id, comment, timestamp)
 	VALUES ($1, $2, $3, $4, '%[1]s')`,
 		time.Now().Format(dateTimeFmt))
-	if _, err := db.db.ExecContext(ctx, query, walletID, transaction.Amount,
-		targetWalletID, transaction.Comment); err != nil {
+	var err error
+	if walletID == 0 {
+		_, err = db.db.ExecContext(ctx, query, nil, transaction.Amount, targetWalletID, transaction.Comment)
+	} else {
+		_, err = db.db.ExecContext(ctx, query, walletID, transaction.Amount, targetWalletID, transaction.Comment)
+	}
+	if err != nil {
 		return fmt.Errorf("err executing [InsertTransaction]: %w", err)
 	}
 	return nil

@@ -11,8 +11,8 @@ import (
 type Database interface {
 	UpsertDepositToWallet(ctx context.Context, accountID int, transaction models.Transaction) error
 	WithdrawMoneyFromWallet(ctx context.Context, accountID int, transaction models.Transaction) error
-	GetWalletBalance(ctx context.Context, accountID int) (*models.Wallet, error)
-	// TransferMoney(ctx context.Context, accountId int, transaction models.TransferTransaction) error
+	GetWallet(ctx context.Context, accountID int) (*models.Wallet, error)
+	TransferMoney(ctx context.Context, accountID int, transaction models.TransferTransaction) error
 }
 
 type Converter interface {
@@ -38,11 +38,11 @@ func (a *App) GetBalance(ctx context.Context, accountID int, currency string) (f
 	var err error
 	if currency != "" {
 		k, err = a.conv.GetRate(ctx, currency)
+		if err != nil || k == 0 {
+			return 0, models.ErrInvalidCurrencySymbols
+		}
 	}
-	if err != nil {
-		return 0, fmt.Errorf("unable to get balance: %w", err)
-	}
-	wallet, err := a.db.GetWalletBalance(ctx, accountID)
+	wallet, err := a.db.GetWallet(ctx, accountID)
 	if err != nil {
 		return 0, fmt.Errorf("unable to get balance: %w", err)
 	}
@@ -57,13 +57,6 @@ func (a *App) AddDepositToWallet(ctx context.Context, accountID int, transaction
 }
 
 func (a *App) WithdrawMoneyFromWallet(ctx context.Context, accountID int, transaction models.Transaction) error {
-	// wallet, err := a.GetBalance(ctx, accountId)
-	// if err != nil {
-	//	 return fmt.Errorf("unable to get balance: %w", err)
-	// }
-	// if wallet.Balance-transaction.Amount < 0 {
-	// 	return fmt.Errorf("not enough money in the wallet")
-	// }
 	if err := a.db.WithdrawMoneyFromWallet(ctx, accountID, transaction); err != nil {
 		return fmt.Errorf("unable to withdraw money: %w", err)
 	}
@@ -71,8 +64,8 @@ func (a *App) WithdrawMoneyFromWallet(ctx context.Context, accountID int, transa
 }
 
 func (a *App) TransferMoney(ctx context.Context, accountID int, transaction models.TransferTransaction) error {
-	// if err := a.db.TransferMoney(ctx, accountId, transaction); err != nil {
-	//	return fmt.Errorf("unable to transfer money: %w", err)
-	// }
+	if err := a.db.TransferMoney(ctx, accountID, transaction); err != nil {
+		return fmt.Errorf("unable to transfer money: %w", err)
+	}
 	return nil
 }
