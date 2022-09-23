@@ -33,13 +33,16 @@ func newHandler(log *logrus.Logger, balance Balance) *handler {
 func (h *handler) GetBalance(w http.ResponseWriter, r *http.Request) {
 	currency := r.URL.Query().Get("currency")
 	ctx := r.Context()
-	sessionInfo := ctx.Value("sessionInfo").(models.SessionInfo)
+	sessionInfo := ctx.Value(SessionKey).(models.SessionInfo)
 	accountID := sessionInfo.AccountID
 	balance, err := h.balance.GetBalance(ctx, accountID, currency)
 	switch {
 	case err == nil:
 	case errors.Is(err, sql.ErrNoRows):
 		h.writeErrResponse(w, http.StatusNotFound, "Not found")
+		return
+	case errors.Is(err, models.ErrInvalidCurrencySymbols):
+		h.writeErrResponse(w, http.StatusBadRequest, models.ErrInvalidCurrencySymbols.Error())
 		return
 	default:
 		h.writeErrResponse(w, http.StatusInternalServerError, err)
@@ -63,10 +66,12 @@ func (h *handler) DepositMoneyToWallet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	sessionInfo := ctx.Value("sessionInfo").(models.SessionInfo)
+	sessionInfo := ctx.Value(SessionKey).(models.SessionInfo)
 	accountID := sessionInfo.AccountID
 	err := h.balance.AddDepositToWallet(ctx, accountID, transaction)
-	if err != nil {
+	switch {
+	case err == nil:
+	default:
 		h.writeErrResponse(w, http.StatusInternalServerError, fmt.Sprintf("Internal server error: %v", err))
 		return
 	}
@@ -81,13 +86,16 @@ func (h *handler) WithdrawMoneyFromWallet(w http.ResponseWriter, r *http.Request
 		return
 	}
 	ctx := r.Context()
-	sessionInfo := ctx.Value("sessionInfo").(models.SessionInfo)
+	sessionInfo := ctx.Value(SessionKey).(models.SessionInfo)
 	accountID := sessionInfo.AccountID
 	err := h.balance.WithdrawMoneyFromWallet(ctx, accountID, transaction)
 	switch {
 	case err == nil:
+	case errors.Is(err, sql.ErrNoRows):
+		h.writeErrResponse(w, http.StatusNotFound, "Not found")
+		return
 	case errors.Is(err, models.ErrNotEnoughMoney):
-		h.writeErrResponse(w, http.StatusConflict, err)
+		h.writeErrResponse(w, http.StatusConflict, models.ErrNotEnoughMoney.Error())
 		return
 	default:
 		h.writeErrResponse(w, http.StatusInternalServerError, fmt.Sprintf("Internal server error: %v", err))
@@ -96,16 +104,22 @@ func (h *handler) WithdrawMoneyFromWallet(w http.ResponseWriter, r *http.Request
 	h.writeJSONResponse(w, map[string]interface{}{"response": "OK"})
 }
 
-// func (h *handler) TransferMoney(w http.ResponseWriter, r *http.Request) {
-//	transaction := models.TransferTransaction{}
-//	if err := json.NewDecoder(r.Body).Decode(&transaction); err != nil {
-//		h.writeErrResponse(w, http.StatusBadRequest, "Can't decode json")
-//		h.log.Info(err)
-//		return
-//	}
-//	ctx := r.Context()
-//	sessionInfo := ctx.Value("sessionInfo").(models.SessionInfo)
-//	accountID := sessionInfo.AccountId
-//
-//	err := h.balance.TransferMoney(ctx, accountID, transaction)
-// }
+func (h *handler) TransferMoney(w http.ResponseWriter, r *http.Request) {
+	transaction := models.TransferTransaction{}
+	if err := json.NewDecoder(r.Body).Decode(&transaction); err != nil {
+		h.writeErrResponse(w, http.StatusBadRequest, "Can't decode json")
+		h.log.Info(err)
+		return
+	}
+	ctx := r.Context()
+	sessionInfo := ctx.Value(SessionKey).(models.SessionInfo)
+	accountID := sessionInfo.AccountID
+	err := h.balance.TransferMoney(ctx, accountID, transaction)
+	switch {
+	case err == nil:
+	default:
+		h.writeErrResponse(w, http.StatusInternalServerError, fmt.Sprintf("Internal server error: %v", err))
+		return
+	}
+	h.writeJSONResponse(w, map[string]interface{}{"response": "OK"})
+}

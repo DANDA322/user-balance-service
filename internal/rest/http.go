@@ -25,11 +25,13 @@ func NewRouter(log *logrus.Logger, balance Balance) chi.Router {
 	r.Use(middleware.Recoverer)
 	r.Use(cors.AllowAll().Handler)
 	r.NotFound(notFoundHandler)
-	r.Use(handler.auth)
-	r.Get("/test", handler.Test)
-	r.Get("/getBalance", handler.GetBalance)
-	r.Post("/addDeposit", handler.DepositMoneyToWallet)
-	r.Post("/withdrawMoney", handler.WithdrawMoneyFromWallet)
+	r.Route("/wallet", func(r chi.Router) {
+		r.Use(handler.auth)
+		r.Get("/test", handler.Test)
+		r.Get("/getBalance", handler.GetBalance)
+		r.Post("/addDeposit", handler.DepositMoneyToWallet)
+		r.Post("/withdrawMoney", handler.WithdrawMoneyFromWallet)
+	})
 
 	return r
 }
