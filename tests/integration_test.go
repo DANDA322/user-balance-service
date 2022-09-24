@@ -46,7 +46,7 @@ func (s *IntegrationTestSuite) SetupSuite() {
 	require.NoError(s.T(), err)
 	err = s.store.Migrate(migrate.Up)
 	require.NoError(s.T(), err)
-	conv := converter.NewConverter(convURL, convAPIKey)
+	conv := converter.New()
 	s.service = internal.NewApp(s.log, s.store, conv)
 	router := rest.NewRouter(s.log, s.service)
 	s.server = &http.Server{
