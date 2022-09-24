@@ -8,7 +8,7 @@ import (
 type MockConverter struct {
 }
 
-func New() *MockConverter {
+func NewMockConverter() *MockConverter {
 	return &MockConverter{}
 }
 
