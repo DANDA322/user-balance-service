@@ -3,9 +3,9 @@ package internal
 import (
 	"context"
 	"fmt"
-
 	"github.com/DANDA322/user-balance-service/internal/models"
 	"github.com/sirupsen/logrus"
+	"time"
 )
 
 type Database interface {
@@ -13,6 +13,8 @@ type Database interface {
 	WithdrawMoneyFromWallet(ctx context.Context, accountID int, transaction models.Transaction) error
 	GetWallet(ctx context.Context, accountID int) (*models.Wallet, error)
 	TransferMoney(ctx context.Context, accountID int, transaction models.TransferTransaction) error
+	GetWalletTransactions(ctx context.Context, accountID int, sortParam string) ([]models.TransactionFullInfo, error)
+	GetWalletTransactionsByDate(ctx context.Context, accountID int, timestamp time.Time) ([]models.TransactionFullInfo, error)
 }
 
 type Converter interface {
@@ -68,4 +70,20 @@ func (a *App) TransferMoney(ctx context.Context, accountID int, transaction mode
 		return fmt.Errorf("unable to transfer money: %w", err)
 	}
 	return nil
+}
+
+func (a *App) GetWalletTransaction(ctx context.Context, accountID int, sortParam string) ([]models.TransactionFullInfo, error) {
+	transactions, err := a.db.GetWalletTransactions(ctx, accountID, sortParam)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get transactions: %w", err)
+	}
+	return transactions, nil
+}
+
+func (a *App) GetWalletTransactionsByDate(ctx context.Context, accountID int, date time.Time) ([]models.TransactionFullInfo, error) {
+	transactions, err := a.db.GetWalletTransactionsByDate(ctx, accountID, date)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get transactions: %w", err)
+	}
+	return transactions, nil
 }
