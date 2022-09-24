@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	token1 = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50SWQiOjU1NSwicm9sZSI6ImFkbWluIn0.NSoip83iAGX2NHMNBTIpyaqcNlvuuqO-QRkr9JibJOQkuc0X1ep5dfDS_GsFOUxllVAZgMaIin3cLc3dXfkkfhzVj6MpsSh4a6HXODVPpfhvkP8aJi_wUo03D2Jp9yTOe2QxXiAfnIrXDkfRx90bhGEPX79qbbLQDbntCiWesgWchuL916TpdYVaHoOyS_oHHcM6TKPsOhkDxe-3M8BVmwSQbizFbjw_KE6wfbFUznA4xQe4Z62idID9qZSXxt_ILN_lgzzUJfHFCmmWN1LKAdCPxNPhfzc9HsIUVhlO3Mxm5lN5UDCPpFz-ArDQ4y-bTKx05v9YrWkb1aqiz8h38w" //nolint:lll,gosec
+	token1 = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2NvdW50X2lkIjo1NTUsInJvbGUiOiJhZG1pbiJ9.tD-jH7f6HzdnWMhyxuLzwomXDc4di3sAe9G2xldZ2lPYWAc4gcGifZyxdunBsNbwZk9VH5OBOV7MuozPFAuGhi9ZwTCt0F27kRMfSt70P5G8EzaqOR2pxxX8rgcui3ZUpE7AXbPaGd49sY94flV_oxFE9-ikuQrH018-qhMAwQ-dKS3lBwwDFtM9rF37iMJX7Omw52TcwpELL2ovQZOQVqNuqs6CZYzLZiTMXR3cBLSCymT7PDs0Rjdtkc5grmBdZVYUwOjzH5-Yjf8ctGBagu5aOTFd2tOAxkmc64xPU-VnmfoG7EkwXLYE9dmlsvQTqRabviWSUoin7Y-XsLSofQ" //nolint:lll,gosec
+	token2 = ""
 )
 
 var transaction1 = &models.Transaction{
@@ -35,7 +36,7 @@ var balance1 = &models.Balance{
 
 var balance2 = &models.Balance{
 	Currency: "USD",
-	Amount:   1.7365395,
+	Amount:   1.7286,
 }
 
 func (s *IntegrationTestSuite) TestAddDeposit() {
@@ -103,7 +104,7 @@ func (s *IntegrationTestSuite) TestWithdrawMoneyNotFound() {
 	resp, code, err := s.processRequest("POST", "/wallet/withdrawMoney", token1, transaction2)
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), http.StatusNotFound, code)
-	require.Equal(s.T(), "{\"error\":\"Not found\"}\n", string(resp))
+	require.Equal(s.T(), "{\"error\":\"wallet not found\"}\n", string(resp))
 }
 
 func (s *IntegrationTestSuite) TestWithdrawMoneyNotEnoughMoney() {

@@ -68,6 +68,7 @@ func (h *handler) DepositMoneyToWallet(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	sessionInfo := ctx.Value(SessionKey).(models.SessionInfo)
 	accountID := sessionInfo.AccountID
+	h.log.Info(accountID)
 	err := h.balance.AddDepositToWallet(ctx, accountID, transaction)
 	switch {
 	case err == nil:
@@ -91,8 +92,8 @@ func (h *handler) WithdrawMoneyFromWallet(w http.ResponseWriter, r *http.Request
 	err := h.balance.WithdrawMoneyFromWallet(ctx, accountID, transaction)
 	switch {
 	case err == nil:
-	case errors.Is(err, sql.ErrNoRows):
-		h.writeErrResponse(w, http.StatusNotFound, "Not found")
+	case errors.Is(err, models.ErrWalletNotFound):
+		h.writeErrResponse(w, http.StatusNotFound, models.ErrWalletNotFound.Error())
 		return
 	case errors.Is(err, models.ErrNotEnoughMoney):
 		h.writeErrResponse(w, http.StatusConflict, models.ErrNotEnoughMoney.Error())
