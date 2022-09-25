@@ -7,9 +7,26 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: secret
     ports:
-      - 5432:5432
+      - "5432:5432"
     volumes:
       - my_volume:/var/lib/postgresql/data
+    networks:
+      - service-network
+
+  service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PG_DSN: "postgres://postgres:secret@db:5432/postgres"
+    restart: always
+    ports:
+      - "9999:9999"
+    networks:
+      - service-network
 
 volumes:
   my_volume:
+
+networks:
+  service-network:
