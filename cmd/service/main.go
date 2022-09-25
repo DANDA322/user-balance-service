@@ -35,8 +35,8 @@ func main() {
 	if err != nil {
 		log.Panicf("failed to get pg connection: %v", err)
 	}
-	converter := converter.NewConverter(convURL, convAPIKey)
-	service := internal.NewApp(log, store, converter)
+	conv := converter.NewConverter(convURL, convAPIKey)
+	service := internal.NewApp(log, store, conv)
 	router := rest.NewRouter(log, service)
 	if err := startServer(ctx, log, router); err != nil {
 		log.Panic("error: ", err)

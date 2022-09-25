@@ -46,6 +46,7 @@ func (h *handler) GetBalance(w http.ResponseWriter, r *http.Request) {
 		h.writeErrResponse(w, http.StatusBadRequest, models.ErrInvalidCurrencySymbols.Error())
 		return
 	default:
+		h.log.Errorf("Error get balance: %v", err)
 		h.writeErrResponse(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -72,13 +73,14 @@ func (h *handler) DepositMoneyToWallet(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 	default:
+		h.log.Errorf("Error deposit money: %v", err)
 		h.writeErrResponse(w, http.StatusInternalServerError, fmt.Sprintf("Internal server error: %v", err))
 		return
 	}
 	h.writeJSONResponse(w, map[string]interface{}{"response": "OK"})
 }
 
-func (h *handler) WithdrawMoneyFromWallet(w http.ResponseWriter, r *http.Request) {
+func (h *handler) WithdrawMoneyFromWallet(w http.ResponseWriter, r *http.Request) { //nolint:dupl
 	transaction := models.Transaction{}
 	if err := json.NewDecoder(r.Body).Decode(&transaction); err != nil {
 		h.writeErrResponse(w, http.StatusBadRequest, "Can't decode json")
@@ -98,13 +100,14 @@ func (h *handler) WithdrawMoneyFromWallet(w http.ResponseWriter, r *http.Request
 		h.writeErrResponse(w, http.StatusConflict, models.ErrNotEnoughMoney.Error())
 		return
 	default:
+		h.log.Errorf("Error withdraw money: %v", err)
 		h.writeErrResponse(w, http.StatusInternalServerError, fmt.Sprintf("Internal server error: %v", err))
 		return
 	}
 	h.writeJSONResponse(w, map[string]interface{}{"response": "OK"})
 }
 
-func (h *handler) TransferMoney(w http.ResponseWriter, r *http.Request) {
+func (h *handler) TransferMoney(w http.ResponseWriter, r *http.Request) { //nolint:dupl
 	transaction := models.TransferTransaction{}
 	if err := json.NewDecoder(r.Body).Decode(&transaction); err != nil {
 		h.writeErrResponse(w, http.StatusBadRequest, "Can't decode json")
@@ -124,6 +127,7 @@ func (h *handler) TransferMoney(w http.ResponseWriter, r *http.Request) {
 		h.writeErrResponse(w, http.StatusConflict, models.ErrNotEnoughMoney.Error())
 		return
 	default:
+		h.log.Errorf("Error transfer money: %v", err)
 		h.writeErrResponse(w, http.StatusInternalServerError, fmt.Sprintf("Internal server error: %v", err))
 		return
 	}
@@ -174,6 +178,7 @@ func (h *handler) GetWalletTransactions(w http.ResponseWriter, r *http.Request) 
 		h.writeErrResponse(w, http.StatusNotFound, models.ErrWalletNotFound.Error())
 		return
 	default:
+		h.log.Errorf("Error get wallet transactions: %v", err)
 		h.writeErrResponse(w, http.StatusInternalServerError, fmt.Sprintf("Internal server error: %v", err))
 		return
 	}

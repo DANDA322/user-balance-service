@@ -206,6 +206,9 @@ func (db *DB) TransferMoney(ctx context.Context, accountID int, transaction mode
 		return err
 	}
 	err = db.insertTransferTransaction(ctx, tx, wallet.ID, targetWallet.ID, transaction)
+	if err != nil {
+		return err
+	}
 	err = tx.Commit()
 	if err != nil {
 		return fmt.Errorf("err committing the transaction: %w", err)
