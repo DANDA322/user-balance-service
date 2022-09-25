@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/DANDA322/user-balance-service/internal/models"
@@ -133,21 +134,40 @@ func (h *handler) GetWalletTransactions(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	sessionInfo := ctx.Value(SessionKey).(models.SessionInfo)
 	accountID := sessionInfo.AccountID
-	date := r.URL.Query().Get("date")
-	sortParam := r.URL.Query().Get("sortParam")
-	var transactions []models.TransactionFullInfo
-	var err error
-	if date != "" {
-		var timestamp time.Time
-		timestamp, err = h.parseTime(date)
-		if err != nil {
-			h.writeErrResponse(w, http.StatusBadRequest, "Can't parse time")
-			return
-		}
-		transactions, err = h.balance.GetWalletTransactionsByDate(ctx, accountID, timestamp)
-	} else {
-		transactions, err = h.balance.GetWalletTransaction(ctx, accountID, sortParam)
+	from, err := h.parseTime(r.URL.Query().Get("from"))
+	if err != nil {
+		h.writeErrResponse(w, http.StatusBadRequest, "Can't parse time")
+		h.log.Info(err)
+		return
 	}
+	to, err := h.parseTime(r.URL.Query().Get("to"))
+	if err != nil {
+		h.writeErrResponse(w, http.StatusBadRequest, "Can't parse time")
+		h.log.Info(to)
+		return
+	}
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil {
+		h.writeErrResponse(w, http.StatusInternalServerError, err)
+		return
+	}
+	offset, err := strconv.Atoi(r.URL.Query().Get("offset"))
+	if err != nil {
+		h.writeErrResponse(w, http.StatusInternalServerError, err)
+		return
+	}
+	sorting := r.URL.Query().Get("sorting")
+	descending := r.URL.Query().Get("descending")
+	var transactions []models.TransactionFullInfo
+	queryParams := models.TransactionsQueryParams{
+		From:       from,
+		To:         to,
+		Limit:      limit,
+		Offset:     offset,
+		Sorting:    sorting,
+		Descending: descending,
+	}
+	transactions, err = h.balance.GetWalletTransaction(ctx, accountID, &queryParams)
 	switch {
 	case err == nil:
 	case errors.Is(err, models.ErrWalletNotFound):
@@ -160,7 +180,7 @@ func (h *handler) GetWalletTransactions(w http.ResponseWriter, r *http.Request) 
 	h.writeJSONResponse(w, transactions)
 }
 
-const dateTimeFmt = "2006-01-02"
+const dateTimeFmt = "2006-01-02T15:04:05Z"
 
 func (h *handler) parseTime(s string) (time.Time, error) {
 	t, err := time.Parse(dateTimeFmt, s)

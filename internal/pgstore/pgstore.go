@@ -97,13 +97,12 @@ func (db *DB) UpsertDepositToWallet(ctx context.Context, ownerID int, transactio
 			db.log.Error("err rolling back deposit transaction")
 		}
 	}()
-	query := fmt.Sprintf(`
+	query := `
 	INSERT INTO wallet (owner_id, balance, created_at, updated_at)
-	VALUES ($1, $2, '%[1]s', '%[1]s')
+	VALUES ($1, $2, $3, $3)
 	ON CONFLICT (owner_id) DO UPDATE SET balance = wallet.balance + excluded.balance,
-										updated_at = excluded.updated_at`,
-		time.Now().Format(dateTimeFmt))
-	if _, err = tx.ExecContext(ctx, query, ownerID, transaction.Amount); err != nil {
+										updated_at = excluded.updated_at`
+	if _, err = tx.ExecContext(ctx, query, ownerID, transaction.Amount, time.Now().Format(dateTimeFmt)); err != nil {
 		return fmt.Errorf("err executing [UpsertDepositToWallet]: %w", err)
 	}
 	wallet, err := db.checkBalance(ctx, tx, ownerID, 0)
@@ -134,13 +133,12 @@ func (db *DB) WithdrawMoneyFromWallet(ctx context.Context, ownerID int, transact
 	if err != nil {
 		return err
 	}
-	query := fmt.Sprintf(`
+	query := `
 	UPDATE wallet 
 	SET balance = balance - $1,
-	updated_at = '%s'
-	WHERE owner_id = $2`,
-		time.Now().Format(dateTimeFmt))
-	result, err := tx.ExecContext(ctx, query, transaction.Amount, ownerID)
+	updated_at = $3
+	WHERE owner_id = $2`
+	result, err := tx.ExecContext(ctx, query, transaction.Amount, ownerID, time.Now().Format(dateTimeFmt))
 	if err != nil {
 		return fmt.Errorf("err executing [WithdrawMoneyFromWallet]: %w", err)
 	}
@@ -215,14 +213,15 @@ func (db *DB) TransferMoney(ctx context.Context, accountID int, transaction mode
 	return nil
 }
 
-func (db *DB) GetWalletTransactions(ctx context.Context, accountID int, sortParam string) ([]models.TransactionFullInfo, error) {
+func (db *DB) GetWalletTransactions(ctx context.Context, accountID int,
+	queryParams *models.TransactionsQueryParams) ([]models.TransactionFullInfo, error) {
 	wallet, err := db.GetWallet(ctx, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("err get wallet: %w", err)
 	}
-	query := db.getQuery(sortParam)
+	query := db.queryBuilder(queryParams.Sorting, queryParams.Descending)
 	var transactions []models.TransactionFullInfo
-	rows, err := db.db.QueryxContext(ctx, query, wallet.ID)
+	rows, err := db.db.QueryxContext(ctx, query, wallet.ID, queryParams.From, queryParams.To, queryParams.Limit, queryParams.Offset)
 	if err != nil {
 		return nil, fmt.Errorf("err executing [GetWalletTransactions]: %w", err)
 	}
@@ -241,68 +240,39 @@ func (db *DB) GetWalletTransactions(ctx context.Context, accountID int, sortPara
 	return transactions, nil
 }
 
-func (db *DB) GetWalletTransactionsByDate(ctx context.Context, accountID int, timestamp time.Time) ([]models.TransactionFullInfo, error) {
-	wallet, err := db.GetWallet(ctx, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("err get wallet: %w", err)
-	}
-	query := `
-	SELECT id, wallet_id, amount, target_wallet_id, comment, timestamp
+func (db *DB) queryBuilder(sorting, descending string) string {
+	query := `SELECT id, wallet_id, amount, target_wallet_id, comment, timestamp
 	FROM transaction
-	WHERE wallet_id = $1 OR target_wallet_id = $1 AND timestamp BETWEEN $2 AND $3`
-	newTimestamp := timestamp.Add(time.Hour * 24)
-	var transactions []models.TransactionFullInfo
-	rows, err := db.db.QueryxContext(ctx, query, wallet.ID, timestamp, newTimestamp)
-	if err != nil {
-		return nil, fmt.Errorf("err executing [GetWalletTransactions]: %w", err)
-	}
-	defer func() {
-		if err = rows.Close(); err != nil {
-			db.log.Warnf("err closing rows: %v", err)
-		}
-	}()
-	var otherTransaction models.TransactionFullInfo
-	for rows.Next() {
-		if err = rows.StructScan(&otherTransaction); err != nil {
-			return transactions, err
-		}
-		transactions = append(transactions, otherTransaction)
-	}
-	return transactions, nil
-}
+	WHERE (wallet_id = $1 OR target_wallet_id = $1)
+	AND timestamp BETWEEN $2 AND $3`
 
-func (db *DB) getQuery(sortParam string) string {
-	if sortParam == "desc" {
-		query := `
-	SELECT id, wallet_id, amount, target_wallet_id, comment, timestamp
-	FROM transaction
-	WHERE wallet_id = $1 OR target_wallet_id = $1
-	ORDER BY amount DESC`
-		return query
+	switch sorting {
+	case "date":
+		query += " ORDER BY timestamp"
+	case "amount":
+		query += " ORDER BY amount"
+	default:
+		query += " ORDER BY timestamp"
 	}
-	if sortParam == "asc" {
-		query := `
-	SELECT id, wallet_id, amount, target_wallet_id, comment, timestamp
-	FROM transaction
-	WHERE wallet_id = $1 OR target_wallet_id = $1
-	ORDER BY amount ASC`
-		return query
+	switch descending {
+	case "desc":
+		query += " DESC"
+	case "asc":
+		query += " ASC"
+	default:
+		query += " DESC"
 	}
-	query := `
-	SELECT id, wallet_id, amount, target_wallet_id, comment, timestamp
-	FROM transaction
-	WHERE wallet_id = $1 OR target_wallet_id = $1`
+	query += " LIMIT $4 OFFSET $5"
 	return query
 }
 
 func (db *DB) withdrawMoney(ctx context.Context, tx *sql.Tx, walletID int, amount float64) error {
-	query := fmt.Sprintf(`
+	query := `
 	UPDATE wallet 
 	SET balance = balance - $1,
-	updated_at = '%s'
-	WHERE id = $2`,
-		time.Now().Format(dateTimeFmt))
-	result, err := tx.ExecContext(ctx, query, amount, walletID)
+	updated_at = $3
+	WHERE id = $2`
+	result, err := tx.ExecContext(ctx, query, amount, walletID, time.Now().Format(dateTimeFmt))
 	if err != nil {
 		return fmt.Errorf("err executing [withdrawMoney]: %w", err)
 	}
@@ -313,13 +283,12 @@ func (db *DB) withdrawMoney(ctx context.Context, tx *sql.Tx, walletID int, amoun
 }
 
 func (db *DB) depositMoney(ctx context.Context, tx *sql.Tx, walletID int, amount float64) error {
-	query := fmt.Sprintf(`
+	query := `
 	UPDATE wallet 
 	SET balance = balance + $1,
-	updated_at = '%s'
-	WHERE id = $2`,
-		time.Now().Format(dateTimeFmt))
-	result, err := tx.ExecContext(ctx, query, amount, walletID)
+	updated_at = $3
+	WHERE id = $2`
+	result, err := tx.ExecContext(ctx, query, amount, walletID, time.Now().Format(dateTimeFmt))
 	if err != nil {
 		return fmt.Errorf("err executing [withdrawMoney]: %w", err)
 	}
@@ -329,16 +298,18 @@ func (db *DB) depositMoney(ctx context.Context, tx *sql.Tx, walletID int, amount
 	return nil
 }
 
-func (db *DB) insertTransaction(ctx context.Context, tx *sql.Tx, walletID, targetWalletID int, transaction models.Transaction) error {
-	query := fmt.Sprintf(`
+func (db *DB) insertTransaction(ctx context.Context, tx *sql.Tx, walletID, targetWalletID int,
+	transaction models.Transaction) error {
+	query := `
 	INSERT INTO transaction (wallet_id, amount, target_wallet_id, comment, timestamp)
-	VALUES ($1, $2, $3, $4, '%[1]s')`,
-		time.Now().Format(dateTimeFmt))
+	VALUES ($1, $2, $3, $4, $5)`
 	var err error
 	if walletID == 0 {
-		_, err = tx.ExecContext(ctx, query, nil, transaction.Amount, targetWalletID, transaction.Comment)
+		_, err = tx.ExecContext(ctx, query, nil, transaction.Amount, targetWalletID,
+			transaction.Comment, time.Now().Format(dateTimeFmt))
 	} else if targetWalletID == 0 {
-		_, err = tx.ExecContext(ctx, query, walletID, transaction.Amount, nil, transaction.Comment)
+		_, err = tx.ExecContext(ctx, query, walletID, transaction.Amount, nil,
+			transaction.Comment, time.Now().Format(dateTimeFmt))
 	}
 	if err != nil {
 		return fmt.Errorf("err executing [InsertTransaction]: %w", err)
@@ -348,11 +319,11 @@ func (db *DB) insertTransaction(ctx context.Context, tx *sql.Tx, walletID, targe
 
 func (db *DB) insertTransferTransaction(ctx context.Context, tx *sql.Tx, walletID, targetWalletID int,
 	transaction models.TransferTransaction) error {
-	query := fmt.Sprintf(`
+	query := `
 	INSERT INTO transaction (wallet_id, amount, target_wallet_id, comment, timestamp)
-	VALUES ($1, $2, $3, $4, '%[1]s')`,
-		time.Now().Format(dateTimeFmt))
-	_, err := tx.ExecContext(ctx, query, walletID, transaction.Amount, targetWalletID, transaction.Comment)
+	VALUES ($1, $2, $3, $4, $5)`
+	_, err := tx.ExecContext(ctx, query, walletID, transaction.Amount, targetWalletID,
+		transaction.Comment, time.Now().Format(dateTimeFmt))
 	if err != nil {
 		return fmt.Errorf("err executing [InsertTransaction]: %w", err)
 	}

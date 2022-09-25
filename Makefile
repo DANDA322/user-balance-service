@@ -5,8 +5,7 @@ run:
 	go run ./...
 up:
 	docker-compose up -d
-
 down:
 	docker-compose down
-test:
+test: up
 	go test -failfast -v ./...
