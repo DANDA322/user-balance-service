@@ -255,9 +255,9 @@ func (db *DB) queryBuilder(sorting, descending string) string {
 		query += " ORDER BY timestamp"
 	}
 	switch descending {
-	case "desc":
+	case "true":
 		query += " DESC"
-	case "asc":
+	case "false":
 		query += " ASC"
 	default:
 		query += " DESC"

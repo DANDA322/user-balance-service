@@ -29,7 +29,6 @@ func NewRouter(log *logrus.Logger, balance Balance) chi.Router {
 	r.NotFound(notFoundHandler)
 	r.Route("/wallet", func(r chi.Router) {
 		r.Use(handler.auth)
-		r.Get("/test", handler.Test)
 		r.Get("/getBalance", handler.GetBalance)
 		r.Post("/addDeposit", handler.DepositMoneyToWallet)
 		r.Post("/withdrawMoney", handler.WithdrawMoneyFromWallet)
@@ -42,12 +41,6 @@ func NewRouter(log *logrus.Logger, balance Balance) chi.Router {
 
 func notFoundHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
-}
-
-func (h *handler) Test(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("{\"response\":\"test!\"}"))
 }
 
 func (h *handler) writeJSONResponse(w http.ResponseWriter, data interface{}) {
