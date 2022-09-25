@@ -14,10 +14,10 @@ type TransferTransaction struct {
 }
 
 type TransactionFullInfo struct {
-	ID             int         `json:"id" db:"id"`
-	WalletID       interface{} `json:"wallet_id" db:"wallet_id"`
-	Amount         float64     `json:"amount" db:"amount"`
-	TargetWalletID interface{} `json:"target_wallet_id" db:"target_wallet_id"`
-	Comment        string      `json:"comment" db:"comment"`
-	Timestamp      time.Time   `json:"timestamp" db:"timestamp"`
+	ID             int       `json:"id" db:"id"`
+	WalletID       int       `json:"wallet_id" db:"wallet_id"`
+	Amount         float64   `json:"amount" db:"amount"`
+	TargetWalletID *int      `json:"target_wallet_id" db:"target_wallet_id"`
+	Comment        string    `json:"comment" db:"comment"`
+	Timestamp      time.Time `json:"timestamp" db:"timestamp"`
 }

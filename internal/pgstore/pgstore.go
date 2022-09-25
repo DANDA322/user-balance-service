@@ -102,14 +102,14 @@ func (db *DB) UpsertDepositToWallet(ctx context.Context, ownerID int, transactio
 	VALUES ($1, $2, $3, $3)
 	ON CONFLICT (owner_id) DO UPDATE SET balance = wallet.balance + excluded.balance,
 										updated_at = excluded.updated_at`
-	if _, err = tx.ExecContext(ctx, query, ownerID, transaction.Amount, time.Now().Format(dateTimeFmt)); err != nil {
+	if _, err = tx.ExecContext(ctx, query, ownerID, transaction.Amount, time.Now().UTC().Format(dateTimeFmt)); err != nil {
 		return fmt.Errorf("err executing [UpsertDepositToWallet]: %w", err)
 	}
 	wallet, err := db.checkBalance(ctx, tx, ownerID, 0)
 	if err != nil {
 		return fmt.Errorf("err executing [UpsertDepositToWallet]: %w", err)
 	}
-	if err = db.insertTransaction(ctx, tx, 0, wallet.ID, transaction); err != nil {
+	if err = db.insertTransaction(ctx, tx, wallet.ID, 0, transaction); err != nil {
 		return fmt.Errorf("err executing [UpsertDepositToWallet]: %w", err)
 	}
 	err = tx.Commit()
@@ -138,7 +138,7 @@ func (db *DB) WithdrawMoneyFromWallet(ctx context.Context, ownerID int, transact
 	SET balance = balance - $1,
 	updated_at = $3
 	WHERE owner_id = $2`
-	result, err := tx.ExecContext(ctx, query, transaction.Amount, ownerID, time.Now().Format(dateTimeFmt))
+	result, err := tx.ExecContext(ctx, query, transaction.Amount, ownerID, time.Now().UTC().Format(dateTimeFmt))
 	if err != nil {
 		return fmt.Errorf("err executing [WithdrawMoneyFromWallet]: %w", err)
 	}
@@ -272,7 +272,7 @@ func (db *DB) withdrawMoney(ctx context.Context, tx *sql.Tx, walletID int, amoun
 	SET balance = balance - $1,
 	updated_at = $3
 	WHERE id = $2`
-	result, err := tx.ExecContext(ctx, query, amount, walletID, time.Now().Format(dateTimeFmt))
+	result, err := tx.ExecContext(ctx, query, amount, walletID, time.Now().UTC().Format(dateTimeFmt))
 	if err != nil {
 		return fmt.Errorf("err executing [withdrawMoney]: %w", err)
 	}
@@ -288,7 +288,7 @@ func (db *DB) depositMoney(ctx context.Context, tx *sql.Tx, walletID int, amount
 	SET balance = balance + $1,
 	updated_at = $3
 	WHERE id = $2`
-	result, err := tx.ExecContext(ctx, query, amount, walletID, time.Now().Format(dateTimeFmt))
+	result, err := tx.ExecContext(ctx, query, amount, walletID, time.Now().UTC().Format(dateTimeFmt))
 	if err != nil {
 		return fmt.Errorf("err executing [withdrawMoney]: %w", err)
 	}
@@ -306,10 +306,10 @@ func (db *DB) insertTransaction(ctx context.Context, tx *sql.Tx, walletID, targe
 	var err error
 	if walletID == 0 {
 		_, err = tx.ExecContext(ctx, query, nil, transaction.Amount, targetWalletID,
-			transaction.Comment, time.Now().Format(dateTimeFmt))
+			transaction.Comment, time.Now().UTC().Format(dateTimeFmt))
 	} else if targetWalletID == 0 {
 		_, err = tx.ExecContext(ctx, query, walletID, transaction.Amount, nil,
-			transaction.Comment, time.Now().Format(dateTimeFmt))
+			transaction.Comment, time.Now().UTC().Format(dateTimeFmt))
 	}
 	if err != nil {
 		return fmt.Errorf("err executing [InsertTransaction]: %w", err)
@@ -323,7 +323,7 @@ func (db *DB) insertTransferTransaction(ctx context.Context, tx *sql.Tx, walletI
 	INSERT INTO transaction (wallet_id, amount, target_wallet_id, comment, timestamp)
 	VALUES ($1, $2, $3, $4, $5)`
 	_, err := tx.ExecContext(ctx, query, walletID, transaction.Amount, targetWalletID,
-		transaction.Comment, time.Now().Format(dateTimeFmt))
+		transaction.Comment, time.Now().UTC().Format(dateTimeFmt))
 	if err != nil {
 		return fmt.Errorf("err executing [InsertTransaction]: %w", err)
 	}

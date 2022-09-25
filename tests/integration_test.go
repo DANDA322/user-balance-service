@@ -23,9 +23,7 @@ import (
 )
 
 const (
-	convURL    = "https://api.apilayer.com/exchangerates_data/latest?"
-	convAPIKey = "9lhi5Xm3MES5GPentAspvlOh5AX1VVPy" //nolint:gosec
-	addr       = ":9988"
+	addr = ":9988"
 )
 
 type IntegrationTestSuite struct {
